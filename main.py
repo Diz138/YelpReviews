@@ -2,6 +2,8 @@ import pandas as pd
 import json
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.cluster.hierarchy as hcluster
+from sklearn.cluster import KMeans
 
 
 def convert_to_csv():
@@ -36,7 +38,6 @@ def convert_to_csv():
     #
     # filtered_review.to_csv('yelp_filtered_review.csv')
 
-
     # Open business and filter by attribute count
     # yelp_business_filtered = pd.read_csv('data/yelp_filtered_business.csv')
     # pd.set_option('display.max_columns', 10)
@@ -45,12 +46,12 @@ def convert_to_csv():
 
     return
 
-def load_data():
 
+def load_data():
     # Define desired columns
     business_cols = ["business_id", "stars", "review_count"]
     review_cols = ["business_id", "text",
-                   #"stars", "useful", "funny", "cool"
+                   # "stars", "useful", "funny", "cool"
                    ]
     tip_cols = ["business_id", "text"]
 
@@ -65,9 +66,9 @@ def load_data():
     #     data = list(map(json.loads, data))
     #
     # yelp_review = pd.DataFrame(data)
-    #yelp_tip = pd.read_json('data/yelp_academic_dataset_tip.json', lines=True)
+    # yelp_tip = pd.read_json('data/yelp_academic_dataset_tip.json', lines=True)
 
-    #print(yelp_review.info())
+    # print(yelp_review.info())
     # grouped_tips = yelp_tip.groupby(['business_id'])
     pd.set_option('display.max_columns', 10)
     pd.set_option('display.max_colwidth', 1000)
@@ -84,8 +85,8 @@ def load_data():
     # print(sorted_business.head(5))
     #
     # print("Average reviews: ", yelp_business['review_count'].mean())
-    #print("Minimum reviews: ", yelp_business['review_count'].min())
-    #print("Maximum reviews: ", yelp_business['review_count'].max())
+    # print("Minimum reviews: ", yelp_business['review_count'].min())
+    # print("Maximum reviews: ", yelp_business['review_count'].max())
 
     # # Summarize info of check-ins
     # yelp_checkin['checkin_count'] = yelp_checkin['date'].apply(
@@ -142,17 +143,18 @@ def load_data():
     print(merged_dataframe.head(1))
     merged_dataframe.to_pickle("./yelp_merged.pkl")
 
+    # merged_dataframe.to_csv('yelp_filtered_merged.csv')
 
-    #merged_dataframe.to_csv('yelp_filtered_merged.csv')
 
 def lowest_date(x):
-    #print(f"x: {x} type of x: {type(x)}")
-    raw_date = int(x[0][0:4])
+    # print(f"x: {x} type of x: {type(x)}")
+    year = int(x[0][0:4])
 
-    return raw_date
+    return year
 
-def plot_df(df):
-    plt.hist(df['opening'], edgecolor='black',density=True, linewidth=1.2, bins=np.arange(2009, 2023)-0.5)
+
+def plot_opening_dates(df):
+    plt.hist(df['opening'], edgecolor='black', linewidth=1.2, bins=np.arange(2009, 2023) - 0.5)
     plt.xticks(range(2009, 2023, 1))
     plt.xticks(rotation='vertical')
     plt.title("Opening Dates Histogram")
@@ -160,6 +162,26 @@ def plot_df(df):
     plt.ylabel("Amount")
     plt.tight_layout()
     plt.show()
+
+    counts, bin_edges = np.histogram(df['opening'], bins=12)
+
+    print(counts)
+    print(bin_edges)
+
+
+def plot_visits(df):
+    # plt.hist(df['visits'], edgecolor='black', linewidth=1.2)
+    # plt.xticks(range(2009, 2023, 1))
+    # plt.xticks(rotation='vertical')
+    plt.scatter(df['opening'], df['visits'], c="blue")
+    plt.xticks(range(2009, 2023, 1))
+    plt.xticks(rotation='vertical')
+    plt.title("Visits Histogram")
+    plt.xlabel("Opening Year")
+    plt.ylabel("Num Visits")
+    plt.tight_layout()
+    plt.show()
+
 
 def evaluate_merged():
     yelp_merged = pd.read_pickle("data/yelp_merged.pkl")
@@ -169,11 +191,11 @@ def evaluate_merged():
 
     yelp_merged_dropped = yelp_merged.dropna(axis='rows')
 
-    #print(yelp_merged.info())
+    # print(yelp_merged.info())
     print(yelp_merged_dropped.info())
-    #print(yelp_merged['tips'].head(1))
+    # print(yelp_merged['tips'].head(1))
 
-    #print(type(yelp_merged['dates']))
+    # print(type(yelp_merged['dates']))
 
     # date_ex = yelp_merged.iloc[0]['dates']
     # print(date_ex[0])
@@ -187,24 +209,34 @@ def evaluate_merged():
         lambda x: lowest_date(x)
     )
 
+    yelp_merged_dropped['visits'] = yelp_merged_dropped['dates'].apply(
+        lambda x: len(x)
+    )
+
     print(yelp_merged_dropped.info())
-    print("Minimum opening ", yelp_merged_dropped['opening'].min())
-    print("Maximum opening ", yelp_merged_dropped['opening'].max())
-    #print(yelp_merged_dropped['dates'].head(5))
-    print(yelp_merged_dropped['opening'].head(5))
+    print("Earliest opening ", yelp_merged_dropped['opening'].min())
+    print("Latest opening ", yelp_merged_dropped['opening'].max())
+    print("Minimum visits ", yelp_merged_dropped['visits'].min())
+    print("Maximum visits ", yelp_merged_dropped['visits'].max())
+    print("Average visits ", yelp_merged_dropped['visits'].mean())
+    # print(yelp_merged_dropped['dates'].head(5))
+    # print(yelp_merged_dropped['opening'].head(5))
 
     return yelp_merged_dropped
 
 
-
-
-
-
+def get_clusters(df):
+    data = df['visits'].values
+    km = KMeans(n_clusters=3)
+    km.fit(data.reshape(-1, 1))
+    print(km.cluster_centers_)
 
 
 
 if __name__ == '__main__':
-    #convert_to_csv()
-    #load_data()
+    # convert_to_csv()
+    # load_data()
     df = evaluate_merged()
-    plot_df(df)
+    # plot_opening_dates(df)
+    # plot_visits(df)
+    get_clusters(df)
