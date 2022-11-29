@@ -1,5 +1,7 @@
 import pandas as pd
 import json
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def convert_to_csv():
@@ -143,20 +145,59 @@ def load_data():
 
     #merged_dataframe.to_csv('yelp_filtered_merged.csv')
 
+def lowest_date(x):
+    #print(f"x: {x} type of x: {type(x)}")
+    raw_date = int(x[0][0:4])
+
+    return raw_date
+
+def plot_df(df):
+    plt.hist(df['opening'], edgecolor='black',density=True, linewidth=1.2, bins=np.arange(2009, 2023)-0.5)
+    plt.xticks(range(2009, 2023, 1))
+    plt.xticks(rotation='vertical')
+    plt.title("Opening Dates Histogram")
+    plt.xlabel("Year")
+    plt.ylabel("Amount")
+    plt.tight_layout()
+    plt.show()
+
 def evaluate_merged():
     yelp_merged = pd.read_pickle("data/yelp_merged.pkl")
 
     pd.set_option('display.max_columns', 10)
     pd.set_option('display.max_colwidth', 1000)
 
-    print(yelp_merged.info())
-    print(yelp_merged['tips'].head(1))
+    yelp_merged_dropped = yelp_merged.dropna(axis='rows')
 
-    date_ex = yelp_merged.iloc[0]['dates']
-    print(date_ex[0])
+    #print(yelp_merged.info())
+    print(yelp_merged_dropped.info())
+    #print(yelp_merged['tips'].head(1))
 
-    tip_ex = yelp_merged.iloc[0]['tips']
-    print(tip_ex[0])
+    #print(type(yelp_merged['dates']))
+
+    # date_ex = yelp_merged.iloc[0]['dates']
+    # print(date_ex[0])
+    #
+    # tip_ex = yelp_merged.iloc[0]['tips']
+    # print(tip_ex[0])
+    # all_data['nouns'] = all_data['text_tokens'].apply(
+    #     lambda x: ' '.join([pair[0] for pair in x if pair[1] in noun_tags]))
+
+    yelp_merged_dropped['opening'] = yelp_merged_dropped['dates'].apply(
+        lambda x: lowest_date(x)
+    )
+
+    print(yelp_merged_dropped.info())
+    print("Minimum opening ", yelp_merged_dropped['opening'].min())
+    print("Maximum opening ", yelp_merged_dropped['opening'].max())
+    #print(yelp_merged_dropped['dates'].head(5))
+    print(yelp_merged_dropped['opening'].head(5))
+
+    return yelp_merged_dropped
+
+
+
+
 
 
 
@@ -165,4 +206,5 @@ def evaluate_merged():
 if __name__ == '__main__':
     #convert_to_csv()
     #load_data()
-    evaluate_merged()
+    df = evaluate_merged()
+    plot_df(df)
