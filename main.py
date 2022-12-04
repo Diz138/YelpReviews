@@ -173,14 +173,45 @@ def plot_visits(df):
     # plt.hist(df['visits'], edgecolor='black', linewidth=1.2)
     # plt.xticks(range(2009, 2023, 1))
     # plt.xticks(rotation='vertical')
-    plt.scatter(df['opening'], df['visits'], c="blue")
+    # df_no_outliers = df[df['visits'] <= 15000]
+    # df_pre_2015 = df_no_outliers[df_no_outliers['opening'] <= 2015]
+    # df_post_2015 = df_no_outliers[df_no_outliers['opening'] > 2015]
+    # plt.scatter(df['opening'], df['visits'], c="blue")
+    # plt.xticks(range(2009, 2023, 1))
+    # plt.xticks(rotation='vertical')
+    # plt.title("Visits Histogram")
+    # plt.xlabel("Opening Year")
+    # plt.ylabel("Num Visits")
+    # plt.tight_layout()
+    # plt.show()
+
+    # plt.scatter(df_pre_2015['opening'], df_pre_2015['visits'], c="blue")
+    # plt.xticks(range(2009, 2016, 1))
+    # plt.xticks(rotation='vertical')
+    # plt.title("Visits Histogram pre-2016")
+    # plt.xlabel("Opening Year")
+    # plt.ylabel("Num Visits")
+    # plt.tight_layout()
+    # plt.show()
+    #
+    # plt.scatter(df_post_2015['opening'], df_post_2015['visits'], c="blue")
+    # plt.xticks(range(2016, 2023, 1))
+    # plt.xticks(rotation='vertical')
+    # plt.title("Visits Histogram post-2015")
+    # plt.xlabel("Opening Year")
+    # plt.ylabel("Num Visits")
+    # plt.tight_layout()
+    # plt.show()
+
+    plt.scatter(df['opening'], df['visits_normalized'], c="blue")
     plt.xticks(range(2009, 2023, 1))
     plt.xticks(rotation='vertical')
-    plt.title("Visits Histogram")
+    plt.title("Visits Scatter Plot")
     plt.xlabel("Opening Year")
-    plt.ylabel("Num Visits")
+    plt.ylabel("Num Visits Normalized by Year")
     plt.tight_layout()
     plt.show()
+
 
 
 def evaluate_merged():
@@ -195,23 +226,20 @@ def evaluate_merged():
     print(yelp_merged_dropped.info())
     # print(yelp_merged['tips'].head(1))
 
-    # print(type(yelp_merged['dates']))
-
-    # date_ex = yelp_merged.iloc[0]['dates']
-    # print(date_ex[0])
-    #
-    # tip_ex = yelp_merged.iloc[0]['tips']
-    # print(tip_ex[0])
-    # all_data['nouns'] = all_data['text_tokens'].apply(
-    #     lambda x: ' '.join([pair[0] for pair in x if pair[1] in noun_tags]))
 
     yelp_merged_dropped['opening'] = yelp_merged_dropped['dates'].apply(
         lambda x: lowest_date(x)
     )
-
+    yelp_merged_dropped['age'] = yelp_merged_dropped['opening'].apply(
+        lambda x: 2022 - x
+    )
     yelp_merged_dropped['visits'] = yelp_merged_dropped['dates'].apply(
         lambda x: len(x)
     )
+    yelp_merged_dropped['visits_normalized'] = yelp_merged_dropped['visits'] / yelp_merged_dropped['age']
+
+    print(yelp_merged_dropped['opening'].head(3))
+    print(yelp_merged_dropped['age'].head(3))
 
     print(yelp_merged_dropped.info())
     print("Earliest opening ", yelp_merged_dropped['opening'].min())
@@ -219,14 +247,20 @@ def evaluate_merged():
     print("Minimum visits ", yelp_merged_dropped['visits'].min())
     print("Maximum visits ", yelp_merged_dropped['visits'].max())
     print("Average visits ", yelp_merged_dropped['visits'].mean())
+
+    print("Minimum normalized visits ", yelp_merged_dropped['visits_normalized'].min())
+    print("Maximum normalized visits ", yelp_merged_dropped['visits_normalized'].max())
+    print("Average normalized visits ", yelp_merged_dropped['visits_normalized'].mean())
     # print(yelp_merged_dropped['dates'].head(5))
     # print(yelp_merged_dropped['opening'].head(5))
+
+    #yelp_merged_dropped.to_pickle("./yelp_merged_filtered.pkl")
 
     return yelp_merged_dropped
 
 
 def get_clusters(df):
-    data = df['visits'].values
+    data = df['visits_normalized'].values
     km = KMeans(n_clusters=3)
     km.fit(data.reshape(-1, 1))
     print(km.cluster_centers_)
@@ -238,5 +272,5 @@ if __name__ == '__main__':
     # load_data()
     df = evaluate_merged()
     # plot_opening_dates(df)
-    # plot_visits(df)
+    plot_visits(df)
     get_clusters(df)
