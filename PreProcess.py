@@ -11,14 +11,14 @@ def convert_to_csv():
     yelp_business = pd.read_json('data/yelp_academic_dataset_business.json', lines=True)
     filtered_business = yelp_business[yelp_business['review_count'] >= 50]
     # filtered_business.to_csv('yelp_filtered_business.csv')
+    # Get all businesses in food area
     filtered_business = filtered_business[(filtered_business['categories'].str.contains("Food")) | (filtered_business['categories'].str.contains("Restaurants"))]
     print(filtered_business.info())
     print(filtered_business['categories'].head())
 
+    # Get list of business_ids for filtering other dataframes
     businesses = filtered_business['business_id'].values.tolist()
-    yelp_review_visits = pd.read_pickle("data/yelp_review_visits.pkl")
-    filtered_yelp_rv = yelp_review_visits[yelp_review_visits['business_id'].isin(businesses)]
-    # filtered_yelp_rv.to_pickle("./yelp_food_reviews.pkl")
+
 
     # Check-in
     # yelp_checkin = pd.read_json('data/yelp_academic_dataset_checkin.json', lines=True)
@@ -27,6 +27,7 @@ def convert_to_csv():
 
     # Tip
     # yelp_tip = pd.read_json('data/yelp_academic_dataset_tip.json', lines=True)
+    ## Group all tips by business_id then concatenate them with '|' as a delimiter
     # yelp_tip_grouped = yelp_tip.groupby('business_id')['text'].apply('|'.join).reset_index()
     # filtered_tip = yelp_tip_grouped[yelp_tip_grouped['business_id'].isin(businesses)]
     # filtered_tip.to_csv('yelp_filtered_tip.csv')
@@ -44,11 +45,10 @@ def convert_to_csv():
 
     # filtered_review.to_csv('yelp_filtered_review.csv')
 
-    # Open business and filter by attribute count
-    # yelp_business_filtered = pd.read_csv('data/yelp_filtered_business.csv')
-    # pd.set_option('display.max_columns', 10)
-    # pd.set_option('display.max_colwidth', 1000)
-    # print(yelp_business_filtered.head(1)['attributes'])
+    # Filter previously created dataframe for businesses only in the food area
+    yelp_review_visits = pd.read_pickle("data/yelp_review_visits.pkl")
+    filtered_yelp_rv = yelp_review_visits[yelp_review_visits['business_id'].isin(businesses)]
+    # filtered_yelp_rv.to_pickle("./yelp_food_reviews.pkl")
 
     return
 
@@ -75,7 +75,8 @@ def load_data():
     # yelp_tip = pd.read_json('data/yelp_academic_dataset_tip.json', lines=True)
 
     # print(yelp_review.info())
-    # grouped_tips = yelp_tip.groupby(['business_id'])
+
+    # Set console display of dataframe info
     pd.set_option('display.max_columns', 10)
     pd.set_option('display.max_colwidth', 1000)
 
@@ -109,12 +110,13 @@ def load_data():
     # print(yelp_checkin['date'].head(5))
     # print(yelp_checkin_sorted['date'].head(5))
 
-    # Combine
+    # Combine multiple datasets into one
     print(yelp_checkin.info())
     print(yelp_business.info())
     print(yelp_tip.info())
     print(yelp_review.info())
 
+    # Split data using pre-made delimiters
     yelp_checkin['dates'] = yelp_checkin['date'].apply(
         lambda text: text.split(', ')
     )
@@ -140,6 +142,7 @@ def load_data():
     # date_ex = yelp_checkin.iloc[0]['dates']
     # print(date_ex[0])
 
+    # Merge datasets together by business_id
     merged_dataframe = pd.merge(yelp_business, yelp_tip, how='left', on="business_id")
     merged_dataframe = merged_dataframe.rename(columns={"text": "tips"})
     merged_dataframe = pd.merge(merged_dataframe, yelp_checkin, how='left', on="business_id")
@@ -151,11 +154,9 @@ def load_data():
 
     # merged_dataframe.to_csv('yelp_filtered_merged.csv')
 
-
+# Function to get the opening year from a check-in list. Used to be date but we only need the year
 def lowest_date(x):
-    # print(f"x: {x} type of x: {type(x)}")
     year = int(x[0][0:4])
-
     return year
 
 
@@ -228,7 +229,7 @@ def plot_visits(df):
     plt.tight_layout()
     plt.show()
 
-
+# Evaluate merged dataset and create opening year, visits, and age columns
 def evaluate_merged():
     yelp_merged = pd.read_pickle("data/yelp_merged.pkl")
 
@@ -241,12 +242,15 @@ def evaluate_merged():
     print(yelp_merged_dropped.info())
     # print(yelp_merged['tips'].head(1))
 
+    # Get first year of first check-in treat as opening year of business
     yelp_merged_dropped['opening'] = yelp_merged_dropped['dates'].apply(
         lambda x: lowest_date(x)
     )
     yelp_merged_dropped['age'] = yelp_merged_dropped['opening'].apply(
         lambda x: 2022 - x
     )
+
+    # Count number of check-ins, divide by age to normalize
     yelp_merged_dropped['visits'] = yelp_merged_dropped['dates'].apply(
         lambda x: len(x)
     )
@@ -272,7 +276,7 @@ def evaluate_merged():
 
     return yelp_merged_dropped
 
-
+# Use K-means to find clusters of data, results used to determine the popularity brackets
 def get_clusters(df):
     data = df['visits_normalized'].values
     km = KMeans(n_clusters=4)
@@ -322,6 +326,8 @@ def isolate_popularity():
     yelp_pops = yelp_merged.drop(['stars', 'dates', 'review_count', 'tips', 'reviews', 'opening', 'age'], axis=1)
     print(yelp_pops.info())
     #yelp_pops.to_pickle("./yelp_pops.pkl")
+
+# Takes all previously found popularity data and appends it to the original reviews dataset
 def combine_reviews_and_visits():
     yelp_pops = pd.read_pickle("data/yelp_pops.pkl")
     print(yelp_pops.info())
@@ -341,6 +347,8 @@ def combine_reviews_and_visits():
 
     #yelp_review.to_pickle("./yelp_review_visits.pkl")
 
+# Retroactively filter for only businesses in the Food industry. Combine arrays of reviews into one large concatenated
+# string of review text
 def compress_reviews():
     yelp_merged = pd.read_pickle("data/yelp_merged_labeled.pkl")
 
@@ -351,12 +359,6 @@ def compress_reviews():
     filtered_business = filtered_business[(filtered_business['categories'].str.contains("Food")) | (filtered_business['categories'].str.contains("Restaurants"))]
     businesses = filtered_business['business_id'].values.tolist()
     yelp_merged = yelp_merged[yelp_merged['business_id'].isin(businesses)]
-
-    # Convert 4 label to 3
-    yelp_merged = yelp_merged.drop(['label'], axis=1)
-    yelp_merged['label'] = yelp_merged['visits_normalized'].apply(
-        lambda x: generate_label(x)
-    )
 
     # Merge reviews into one string
     yelp_merged['reviews_concatenated'] = yelp_merged['reviews'].apply(
