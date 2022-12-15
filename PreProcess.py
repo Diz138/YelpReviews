@@ -11,8 +11,14 @@ def convert_to_csv():
     yelp_business = pd.read_json('data/yelp_academic_dataset_business.json', lines=True)
     filtered_business = yelp_business[yelp_business['review_count'] >= 50]
     # filtered_business.to_csv('yelp_filtered_business.csv')
+    filtered_business = filtered_business[(filtered_business['categories'].str.contains("Food")) | (filtered_business['categories'].str.contains("Restaurants"))]
+    print(filtered_business.info())
+    print(filtered_business['categories'].head())
 
     businesses = filtered_business['business_id'].values.tolist()
+    yelp_review_visits = pd.read_pickle("data/yelp_review_visits.pkl")
+    filtered_yelp_rv = yelp_review_visits[yelp_review_visits['business_id'].isin(businesses)]
+    # filtered_yelp_rv.to_pickle("./yelp_food_reviews.pkl")
 
     # Check-in
     # yelp_checkin = pd.read_json('data/yelp_academic_dataset_checkin.json', lines=True)
@@ -33,9 +39,9 @@ def convert_to_csv():
     # yelp_review = pd.DataFrame(data)
     #
     # yelp_review_grouped = yelp_review.groupby('business_id')['text'].apply('|'.join).reset_index()
-    # #filtered_review = yelp_review[yelp_review['business_id'].isin(businesses)]
+    # filtered_review = yelp_review[yelp_review['business_id'].isin(businesses)]
     # filtered_review = yelp_review_grouped[yelp_review_grouped['business_id'].isin(businesses)]
-    #
+
     # filtered_review.to_csv('yelp_filtered_review.csv')
 
     # Open business and filter by attribute count
@@ -212,6 +218,15 @@ def plot_visits(df):
     plt.tight_layout()
     plt.show()
 
+    df_no_outliers = df[df['visits_normalized'] <= 1500]
+    plt.scatter(df_no_outliers['opening'], df_no_outliers['visits_normalized'], c="blue")
+    plt.xticks(range(2009, 2023, 1))
+    plt.xticks(rotation='vertical')
+    plt.title("Visits Scatter Plot Outliers Removed")
+    plt.xlabel("Opening Year")
+    plt.ylabel("Num Visits Normalized by Year")
+    plt.tight_layout()
+    plt.show()
 
 
 def evaluate_merged():
@@ -225,7 +240,6 @@ def evaluate_merged():
     # print(yelp_merged.info())
     print(yelp_merged_dropped.info())
     # print(yelp_merged['tips'].head(1))
-
 
     yelp_merged_dropped['opening'] = yelp_merged_dropped['dates'].apply(
         lambda x: lowest_date(x)
@@ -254,23 +268,122 @@ def evaluate_merged():
     # print(yelp_merged_dropped['dates'].head(5))
     # print(yelp_merged_dropped['opening'].head(5))
 
-    #yelp_merged_dropped.to_pickle("./yelp_merged_filtered.pkl")
+    # yelp_merged_dropped.to_pickle("./yelp_merged_filtered.pkl")
 
     return yelp_merged_dropped
 
 
 def get_clusters(df):
     data = df['visits_normalized'].values
-    km = KMeans(n_clusters=3)
+    km = KMeans(n_clusters=4)
     km.fit(data.reshape(-1, 1))
     print(km.cluster_centers_)
+
+    df_no_outliers = df[df['visits_normalized'] <= 1500]
+    data = df_no_outliers['visits_normalized'].values
+    km.fit(data.reshape(-1, 1))
+    print("Clusters without outliers")
+    print(km.cluster_centers_)
+
+
+def generate_label(visits):
+    label = 0
+
+    if visits <= 17:
+        label = 0
+    elif 17 < visits <= 74:
+        label = 1
+    elif 74 < visits <= 201:
+        label = 2
+    elif 201 < visits <= 538:
+        label = 3
+    else:
+        label = 4
+
+    return label
+
+
+def generate_labeled_dataframe():
+    yelp_merged = pd.read_pickle("data/yelp_merged_filtered.pkl")
+    yelp_merged['label'] = yelp_merged['visits_normalized'].apply(
+        lambda x: generate_label(x)
+    )
+    sample = yelp_merged.sample(5)
+    print(sample['visits_normalized'])
+    print(sample['label'])
+
+    #yelp_agg = yelp_merged.groupby(['label'])['label'].count()
+    #print(yelp_agg)
+
+    yelp_merged.to_pickle("./yelp_merged_labeled.pkl")
+
+def isolate_popularity():
+    yelp_merged = pd.read_pickle("data/yelp_merged_labeled.pkl")
+    yelp_pops = yelp_merged.drop(['stars', 'dates', 'review_count', 'tips', 'reviews', 'opening', 'age'], axis=1)
+    print(yelp_pops.info())
+    #yelp_pops.to_pickle("./yelp_pops.pkl")
+def combine_reviews_and_visits():
+    yelp_pops = pd.read_pickle("data/yelp_pops.pkl")
+    print(yelp_pops.info())
+
+    with open('data/yelp_academic_dataset_review.json', encoding='utf-8') as json_file:
+        data = json_file.readlines()
+        data = list(map(json.loads, data))
+
+    yelp_review = pd.DataFrame(data)
+    yelp_review = yelp_review.drop(['review_id', 'user_id', 'date'], axis=1)
+
+    yelp_review = yelp_review.merge(yelp_pops, how='left', on='business_id')
+
+    print(yelp_review.info())
+    yelp_review = yelp_review.dropna(axis='rows')
+    print(yelp_review.info())
+
+    #yelp_review.to_pickle("./yelp_review_visits.pkl")
+
+def compress_reviews():
+    yelp_merged = pd.read_pickle("data/yelp_merged_labeled.pkl")
+
+
+    # Filter for businesses in the Food industry
+    yelp_business = pd.read_json('data/yelp_academic_dataset_business.json', lines=True)
+    filtered_business = yelp_business[yelp_business['review_count'] >= 50]
+    filtered_business = filtered_business[(filtered_business['categories'].str.contains("Food")) | (filtered_business['categories'].str.contains("Restaurants"))]
+    businesses = filtered_business['business_id'].values.tolist()
+    yelp_merged = yelp_merged[yelp_merged['business_id'].isin(businesses)]
+
+    # Convert 4 label to 3
+    yelp_merged = yelp_merged.drop(['label'], axis=1)
+    yelp_merged['label'] = yelp_merged['visits_normalized'].apply(
+        lambda x: generate_label(x)
+    )
+
+    # Merge reviews into one string
+    yelp_merged['reviews_concatenated'] = yelp_merged['reviews'].apply(
+        lambda review_list: ' '.join([text[0:750] for text in review_list])
+    )
+
+    # Drop unnecessary info
+    yelp_merged = yelp_merged.drop(['reviews', 'tips', 'opening', 'age', 'dates'], axis=1)
+    print(yelp_merged.info())
+
+    pd.set_option('display.max_columns', 10)
+    pd.set_option('display.max_colwidth', 1000)
+    print(yelp_merged['reviews_concatenated'].head(1))
+
+    yelp_merged.to_pickle("./yelp_compressed_reviews.pkl")
+
 
 
 
 if __name__ == '__main__':
     # convert_to_csv()
     # load_data()
-    df = evaluate_merged()
+    # df = evaluate_merged()
     # plot_opening_dates(df)
-    plot_visits(df)
-    get_clusters(df)
+    # plot_visits(df)
+    # get_clusters(df)
+    # generate_labeled_dataframe()
+    # generate_reviews_and_popularity()
+    # combine_reviews_and_visits()
+    compress_reviews()
