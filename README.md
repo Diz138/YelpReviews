@@ -10,3 +10,5 @@ This folder contains all of the models used on the merged dataset. This dataset 
 
 reviewBasedModels: 
 This folder contains all of the models used on the reviews based dataset. This dataset contains a row per each review of a business (a business can have multiple reviews).
+
+Note: All Keras models were used for final reported data. All PyTorch models are included as preliminary work but their results were not recorded as a part of the final submission.
